@@ -1,162 +1,285 @@
 const
-StringOpener	= _ => _.match( /['"`\/]/ )
+Reserved = _ => [
+	"await"
+,	"break"
+,	"case"
+,	"catch"
+,	"class"
+,	"const"
+,	"continue"
+,	"debugger"
+,	"default"
+,	"delete"
+,	"do"
+,	"else"
+,	"enum"
+,	"export"
+,	"extends"
+,	"false"
+,	"finally"
+,	"for"
+,	"function"
+,	"if"
+,	"import"
+,	"in"
+,	"instanceof"
+,	"new"
+,	"null"
+,	"return"
+,	"super"
+,	"switch"
+,	"this"
+,	"throw"
+,	"true"
+,	"try"
+,	"typeof"
+,	"var"
+,	"void"
+,	"while"
+,	"with"
+,	"yield"
+,	"implements"
+,	"interface"
+,	"let"
+,	"package"
+,	"private"
+,	"protected"
+,	"public"
+,	"static"
+,	"true"
+,	"false"
+,	"null"
+,	"NaN"
+,	"Infinity"
+,	"undefined"
+,	"globalThis"
+,	"arguments"
+].includes( _ )
 
 const
-RemoveComments = source => {
-	let	inS = null
-	let $ = ''
-	let _ = 0
-	while ( _ < source.length ) {
-		if ( inS ) {
+Operator	= _ => _.match( /[+\-*/%=<>!~&|^?:.]+/ )
+
+const
+OpenParen	= _ => _[ 0 ].match( /[\[\(\{]/ )
+const
+CloseParen	= _ => _[ 0 ].match( /[\]\)\}]/ )
+
+const
+OpenString	= _ => _[ 0 ].match( /[`"']/ )
+
+const
+RegEx		= _ => _.at( 0 ) === '/' && _.at( -1 ) === '/'
+
+const
+CorrParen = _ => (
+	{	'(':	')'
+	,	'{':	'}'
+	,	'[':	']'
+	}[ _ ]
+)
+
+
+const
+Tokenize	= S => {	//	Source
+
+	const	$	= []
+	let		_	= 0
+
+	const
+	ReadRemain	= ( closer, extra ) => {	//	`closer` accepts RegEx
+		let $ = ''
+		while( _ < S.length ) {
 			const
-			C = source[ _++ ]
+			C = S[ _++ ]
 			$ += C
-			C === '\\' && _ < source.length && ( $ += source[ _++ ] )
-			C === inS && ( inS = null )
-		} else {
-			switch ( source.slice( _, _ + 2 ) ) {
-			case '/*'	:
-				_ += 2
-				while ( _ < source.length - 1 ) {
-					if ( source[ _++ ] === '*' && source[ _++ ] === '/' ) break
-				}
-				break
-			case '//'	:
-				_ += 2
-				while ( _ < source.length ) {
-					if ( source[ _++ ] === '\n' ) {
-						$ += '\n'
-						break
-					}
-				}
-				break
-			default		:
-				{	const
-					C = source[ _++ ]
-					$ += C
-					StringOpener( C ) && ( inS = C )
-				}
-				break
+			if( C.match( closer ) ) break
+			if( C === '\\' ) {
+				_ < S.length && ( $ += S[ _++ ] )
+				continue
+			}
+			if( extra ) {
+				$ += extra( C )
+				continue
 			}
 		}
+		return $
 	}
+
+	const
+	ReadOperatorRemain = () => {
+		let
+		$ = ''
+		while( _ < S.length ) {
+			if( Operator( S[ _ ] ) ) $ += S[ _++ ]
+			else break
+		}
+		return $
+	}
+
+	let
+	word = ''
+	while( _ < S.length ) {
+
+		const
+		C = S[ _++ ]
+
+		if( C === '/' ) {
+			word && ( $.push( word ), word = '' )
+			if( _ < S.length && S[ _ ] === '*' ) {
+				_ += 2
+				while( _ < S.length - 1 ) if( S[ _++ ] === '*' && S[ _++ ] === '/' ) break
+				continue
+			}
+			if( _ < S.length && S[ _ ] === '/' ) {
+				_ += 2
+				while( _ < S.length ) if( S[ _++ ] === '\n' ) break
+				continue
+			}
+			const _Saved = _
+			const RE = ReadRemain(
+				/[\/\n]/
+			,	_ => _ === '['
+				?	ReadRemain( ']' )
+				:	''
+			)
+			if( RE.at( -1 ) === '/' ) $.push( C + RE )
+			else {
+				_ = _Saved
+				$.push( C + ReadOperatorRemain() )
+			}
+			continue
+		}
+
+		if(	Operator( C ) ) {
+			word && ( $.push( word ), word = '' )
+			$.push( C + ReadOperatorRemain() )
+			continue
+		}
+
+		if(	OpenString( C ) ) {
+			word && ( $.push( word ), word = '' )
+			$.push( C + ReadRemain( C ) )
+			continue
+		}
+
+		if(	C === '\n' ) {
+			word && ( $.push( word ), word = '' )
+			$.length && $.at( -1 ) === C || $.push( C )
+			continue
+		}
+		if(	C.match( /\s/ ) ) {
+			word && ( $.push( word ), word = '' )
+			continue
+		}
+
+		if(	C === ','
+		||	C === ';'
+		||	OpenParen( C )
+		||	CloseParen( C )
+		) {	word && ( $.push( word ), word = '' )
+			$.push( C )
+			continue
+		}
+
+		word += C
+	}
+	word && $.push( word )
+
 	return $
 }
 
 const
-source = RemoveComments( ( await import( 'fs' ) ).readFileSync( '/dev/stdin', 'utf8' ) )
+Format	= Ts => {
 
-const
-T = []
+	let _ = 0
 
-const
-WordElement		= _ => _.match( /[A-Za-z0-9_\$]/ )
-const
-SpaceLike		= _ => _.match( /\s/ )
-const
-OpenParen		= _ => _.match( /[\[\(\{]/ )
-const
-CloseParen		= _ => _.match( /[\]\)\}]/ )
-const
-ParenDeli		= _ => CloseParen( _ ) || OpenParen( _ ) || _.match( /[,;]/ )
-const
-Operator		= _ => !( StringOpener( _ ) || WordElement( _ ) || SpaceLike( _ ) || ParenDeli( _ ) )
-
-
-let
-word = ''
-
-let
-string = null
-let
-inESC = false
-
-let
-pC	//	previous C
-
-for ( const C of source ) {
-
-	string
-	?	inESC
-		?	( string += C, inESC = false )
-		:	C === string[ 0 ]
-			?	( T.push( string + string[ 0 ] ), string = null )
-			:	( string += C, C === '\\' && ( inESC = true ) )
-	:	StringOpener( C )
-		?	string = C
-		:	WordElement( C )	//	NOT IN STRING
-			?	word += C
-			:	(
-				word.length && ( T.push( word ), word = '' )
-			,	SpaceLike( C )
-				?	C === '\n' && T.push( C )
-				:	ParenDeli( C )
-					?	T.push( C )
-					:	Operator( pC )
-						?	( T[ T.length - 1 ] += C )
-						:	T.push( C )
-			)
-	;
-
-	pC = C
-}
-
-
-/*
-比較：==, !=, ===, !==, <=, >=
-論理：&&, ||, ??
-代入：+=, -=, *=, /=, **=, &&=, ||=, ??=
-ビット：<<, >>, >>>, &=, |=, ^=
-その他：=>, **, ...
-*/
-
-//	console.log( T.slice( 0, 32 ) )
-
-const W		= _ => process.stdout.write( _ )
-const NW	= _ => W( '\n' + _ )
-const WN	= _ => W( _ + '\n' )
-const NWN	= _ => W( '\n' + _ + '\n' )
-
-let
-iL = 0
-const
-Indent = () => W( '\t'.repeat( iL ) )
-
-let
-newLine = true
-
-
-for ( let _ = 0; _ < T.length; _++ ) {
 	const
-	$ = T[ _ ]
+	MakeBlock = closer => {
+		const	$ = []
+		let		pre = ''
+	//	const	PushLine = _ => ( $.push( _ ), pre = '' )
+		while ( _ < Ts.length ) {
+			const T = Ts[ _++ ]
+			if( T === closer ) break
 
-	if ( $ === '\n' ) continue
+			if( OpenParen( T ) ) {
+				$.push( [ pre, T, MakeBlock( CorrParen( T ) ) ] )
+				pre = ''
+				continue
+			}
+			if( T === ';'	) {			( $.push( pre + T	), pre = '' ); continue }
+			if( T === '\n'	) { pre &&	( $.push( pre		), pre = '' ); continue }
+			if( T === ','	) { pre &&	( $.push( pre		), pre = '' ); continue }
 
-	if ( newLine ) {
-		newLine = false
-		Indent()
+			if( T === '.'	) { pre += T					; continue }
+
+			if(	Reserved( T )
+			||	RegEx( T )
+			||	Operator( T )
+			||	OpenString( T )
+			) {	pre && pre.at( -1 ) != '.' && ( pre += ' ' )
+				pre += T
+				continue
+			}
+
+			pre && 1 < _ && Reserved( Ts[ _ - 2 ] ) 
+			?	( $.push( pre ), pre = T )
+			:	(	pre && pre.at( -1 ) != '.' && ( pre += ' ' )
+				,	pre += T
+				)
+		}
+		pre && $.push( pre )
+		return $
 	}
 
-	if ( false ) {}
-	else if ( OpenParen( $[ 0 ] )	) ( WN( $ ), iL++, newLine = true )
-	else if ( CloseParen( $[ 0 ] )	) ( NWN( $ ), --iL, newLine = true )
-	else if ( $ === '.'			) W( '.' )
-	else if ( $ === ','			) W( ', ' )
-	else if ( $ === ';'			) _ < T.length - 1 && OpenParen( T[ _ + 1 ] ) && W( $ )
-	else if ( Operator( $ )		) W( ' ' + $ + ' ' )
-	else if (
-		$ === 'const'
-	||	$ === 'let'
-	||	$ === 'var'
-	)( W( '\n' + $ + '\n' ), indent = true )
-	else if (
-		$ === 'return'
-	) W( $ + ' ' )
-	else W( $ )
+	const
+	MakeLines = block => {
+		let
+		$ = []
+		for ( const _ of block ) {
+			if ( _.constructor === Array ) {
+				const
+				lines = MakeLines( _[ 2 ] )
+				switch ( lines.length ) {
+				case 0:
+					$.push( _[ 0 ] + _[ 1 ] + CorrParen( _[ 1 ] ) )
+					break
+				case 1:
+					$.push( _[ 0 ] + _[ 1 ] + ' ' + lines[ 0 ] + ' ' + CorrParen( _[ 1 ] ) )
+					break
+				default:
+					$.push( _[ 0 ] + _[ 1 ] )
+					$.push( '\t' + lines[ 0 ] )
+					_[ 1 ] === '{'	//	}
+					?	lines.slice( 1 ).forEach( line => $.push( '\t' + line ) )
+					:	lines.slice( 1 ).forEach( line => $.push( ',\t' + line ) )
+					$.push( CorrParen( _[ 1 ] ) )
+					break
+				}
+				continue
+			}
+			Operator( _ ) && $[ $.length - 1 ] += _.at( -1 )
+			$.push( _ )
+		}
+		return $
+	}
+
+//	return MakeLines( MakeBlock() ).join( '\n' ) + '\n'
+	const
+	block = MakeBlock()
+//	console.log( JSON.stringify( block, null, '\t' ) )
+	return MakeLines( block ).join( '\n' ) + '\n'
+
 }
-/*
-console.log( $ )
-$.forEach(
-	_ => process.stdout.write( _ === '\n' ? _ : _ + ' ' )
+
+import fs from 'fs'
+
+fs.writeFileSync(
+	'/dev/stdout'
+,	Format(
+		Tokenize(
+			fs.readFileSync( '/dev/stdin', 'utf8' )
+		)
+	)
 )
-*/
+

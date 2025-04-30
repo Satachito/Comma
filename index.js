@@ -1,83 +1,14 @@
 const
-Reserved = _ => [
-	"await"
-,	"break"
-,	"case"
-,	"catch"
-,	"class"
-,	"const"
-,	"continue"
-,	"debugger"
-,	"default"
-,	"delete"
-,	"do"
-,	"else"
-,	"enum"
-,	"export"
-,	"extends"
-,	"false"
-,	"finally"
-,	"for"
-,	"function"
-,	"if"
-,	"import"
-,	"in"
-,	"instanceof"
-,	"new"
-,	"null"
-,	"return"
-,	"super"
-,	"switch"
-,	"this"
-,	"throw"
-,	"true"
-,	"try"
-,	"typeof"
-,	"var"
-,	"void"
-,	"while"
-,	"with"
-,	"yield"
-,	"implements"
-,	"interface"
-,	"let"
-,	"package"
-,	"private"
-,	"protected"
-,	"public"
-,	"static"
-,	"true"
-,	"false"
-,	"null"
-,	"NaN"
-,	"Infinity"
-,	"undefined"
-,	"globalThis"
-,	"arguments"
-].includes( _ )
+SymbolC		= /[+\-*/%=<>!~&|^?:.]/
 
 const
-Operator	= _ => _.match( /[+\-*/%=<>!~&|^?:.]+/ )
+OpenParen	= /[\[\(\{]/
 
 const
-OpenParen	= _ => _[ 0 ].match( /[\[\(\{]/ )
-const
-CloseParen	= _ => _[ 0 ].match( /[\]\)\}]/ )
+CloseParen	= /[\]\)\}]/
 
 const
-OpenString	= _ => _[ 0 ].match( /[`"']/ )
-
-const
-RegEx		= _ => _.at( 0 ) === '/' && _.at( -1 ) === '/'
-
-const
-CorrParen = _ => (
-	{	'(':	')'
-	,	'{':	'}'
-	,	'[':	']'
-	}[ _ ]
-)
-
+OpenString	= /[`"']/
 
 const
 Tokenize	= S => {	//	Source
@@ -86,7 +17,7 @@ Tokenize	= S => {	//	Source
 	let		_	= 0
 
 	const
-	ReadRemain	= ( closer, extra ) => {	//	`closer` accepts RegEx
+	ReadRemain	= ( closer, extra ) => {	//	`closer` accepts RegEX
 		let $ = ''
 		while( _ < S.length ) {
 			const
@@ -106,11 +37,11 @@ Tokenize	= S => {	//	Source
 	}
 
 	const
-	ReadOperatorRemain = () => {
+	ReadSymbolRemain = () => {
 		let
 		$ = ''
 		while( _ < S.length ) {
-			if( Operator( S[ _ ] ) ) $ += S[ _++ ]
+			if( S[ _ ].match( SymbolC ) ) $ += S[ _++ ]
 			else break
 		}
 		return $
@@ -145,18 +76,18 @@ Tokenize	= S => {	//	Source
 			if( RE.at( -1 ) === '/' ) $.push( C + RE )
 			else {
 				_ = _Saved
-				$.push( C + ReadOperatorRemain() )
+				$.push( C + ReadSymbolRemain() )
 			}
 			continue
 		}
 
-		if(	Operator( C ) ) {
+		if( C.match( SymbolC ) ) { 
 			word && ( $.push( word ), word = '' )
-			$.push( C + ReadOperatorRemain() )
+			$.push( C + ReadSymbolRemain() )
 			continue
 		}
 
-		if(	OpenString( C ) ) {
+		if(	C.match( OpenString ) ) {
 			word && ( $.push( word ), word = '' )
 			$.push( C + ReadRemain( C ) )
 			continue
@@ -174,8 +105,8 @@ Tokenize	= S => {	//	Source
 
 		if(	C === ','
 		||	C === ';'
-		||	OpenParen( C )
-		||	CloseParen( C )
+		||	C.match( OpenParen )
+		||	C.match( CloseParen )
 		) {	word && ( $.push( word ), word = '' )
 			$.push( C )
 			continue
@@ -189,97 +120,253 @@ Tokenize	= S => {	//	Source
 }
 
 const
-Format	= Ts => {
+IsReserved	= _ => [
+	`await`
+,	`break`
+,	`case`
+,	`catch`
+,	`class`
+,	`const`
+,	`continue`
+,	`debugger`
+,	`default`
+,	`delete`
+,	`do`
+,	`else`
+,	`enum`
+,	`export`
+,	`extends`
+,	`false`
+,	`finally`
+,	`for`
+,	`function`
+,	`if`
+,	`import`
+,	`in`
+,	`instanceof`
+,	`new`
+,	`null`
+,	`return`
+,	`super`
+,	`switch`
+,	`this`
+,	`throw`
+,	`true`
+,	`try`
+,	`typeof`
+,	`var`
+,	`void`
+,	`while`
+,	`with`
+,	`yield`
+,	`implements`
+,	`interface`
+,	`let`
+,	`package`
+,	`private`
+,	`protected`
+,	`public`
+,	`static`
+,	`true`
+,	`false`
+,	`null`
+,	`NaN`
+,	`Infinity`
+,	`undefined`
+,	`globalThis`
+,	`arguments`
+].includes( _ )
 
+const
+IsSymbol	= _ => [
+	`!`
+,	`~`
+,	`...`
+
+,	`++`
+,	`--`
+
+,	`+`
+,	`-`
+
+,	`*`
+,	`/`
+,	`%`
+,	`=`
+,	`>`
+,	`<`
+,	`&`
+,	`|`
+,	`^`
+
+,	`**`
+,	`+=`
+,	`-=`
+,	`*=`
+,	`/=`
+,	`%=`
+,	`**=`
+,	`==`
+,	`!=`
+,	`===`
+,	`!==`
+,	`>=`
+,	`<=`
+,	`&&`
+,	`||`
+,	`??`
+,	`<<`
+,	`>>`
+,	`>>>`
+,	`?`
+,	`:`
+,	`?.`
+
+,	`.`
+].includes( _ )
+
+const
+IsRegEX		= _ => _.at( 0 ) === '/' && _.at( -1 ) === '/'
+
+const
+IsString	= _ => _.at( 0 ).match( OpenString )
+
+const
+MakeTrees	= Ts => {
 	let _ = 0
 
 	const
-	MakeBlock = closer => {
+	Trees = ( closer = null ) => {
 		const	$ = []
 		let		pre = ''
-	//	const	PushLine = _ => ( $.push( _ ), pre = '' )
 		while ( _ < Ts.length ) {
+
 			const T = Ts[ _++ ]
 			if( T === closer ) break
 
-			if( OpenParen( T ) ) {
-				$.push( [ pre, T, MakeBlock( CorrParen( T ) ) ] )
+			if( T[ 0 ].match( OpenParen ) ) {
+				$.push( [ pre, T, Trees( CorrParen( T ) ) ] )
 				pre = ''
 				continue
 			}
-			if( T === ';'	) {			( $.push( pre + T	), pre = '' ); continue }
-			if( T === '\n'	) { pre &&	( $.push( pre		), pre = '' ); continue }
-			if( T === ','	) { pre &&	( $.push( pre		), pre = '' ); continue }
+			if( T === ';' ) {
+				( $.push( pre + T ), pre = '' )
+				continue
+			}
+			if( T === '\n' ) {
+				pre && ( $.push( pre ), pre = '' )
+				continue
+			}
+			if( T === ',' ) {
+				pre && $.push( pre )
+				pre = ','
+				continue
+			}
 
-			if( T === '.'	) { pre += T					; continue }
-
-			if(	Reserved( T )
-			||	RegEx( T )
-			||	Operator( T )
-			||	OpenString( T )
-			) {	pre && pre.at( -1 ) != '.' && ( pre += ' ' )
+			if( T === '.' ) {
 				pre += T
 				continue
 			}
 
-			pre && 1 < _ && Reserved( Ts[ _ - 2 ] ) 
-			?	( $.push( pre ), pre = T )
-			:	(	pre && pre.at( -1 ) != '.' && ( pre += ' ' )
-				,	pre += T
-				)
+			const
+			delimit = () => pre !== ',' && pre && pre.at( -1 ) != '.' && ( pre += ' ' )
+
+			//	i.e. Exclude identifier
+			if(	IsReserved( T )
+			||	IsString( T )
+			||	IsRegEX( T )
+			||	IsSymbol( T )
+			) {	delimit()
+				pre += T
+				continue
+			}
+////////
+			if ( _ && IsReserved( Ts[ _ - 1 ] ) ) {
+				$.push( pre )
+				pre = T
+				continue
+			}
+			delimit()
+			pre += T
 		}
 		pre && $.push( pre )
 		return $
 	}
-
-	const
-	MakeLines = block => {
-		let
-		$ = []
-		for ( const _ of block ) {
-			if ( _.constructor === Array ) {
-				const
-				lines = MakeLines( _[ 2 ] )
-				switch ( lines.length ) {
-				case 0:
-					$.push( _[ 0 ] + _[ 1 ] + CorrParen( _[ 1 ] ) )
-					break
-				case 1:
-					$.push( _[ 0 ] + _[ 1 ] + ' ' + lines[ 0 ] + ' ' + CorrParen( _[ 1 ] ) )
-					break
-				default:
-					$.push( _[ 0 ] + _[ 1 ] )
-					$.push( '\t' + lines[ 0 ] )
-					_[ 1 ] === '{'	//	}
-					?	lines.slice( 1 ).forEach( line => $.push( '\t' + line ) )
-					:	lines.slice( 1 ).forEach( line => $.push( ',\t' + line ) )
-					$.push( CorrParen( _[ 1 ] ) )
-					break
-				}
-				continue
-			}
-			Operator( _ ) && $[ $.length - 1 ] += _.at( -1 )
-			$.push( _ )
-		}
-		return $
-	}
-
-//	return MakeLines( MakeBlock() ).join( '\n' ) + '\n'
-	const
-	block = MakeBlock()
-//	console.log( JSON.stringify( block, null, '\t' ) )
-	return MakeLines( block ).join( '\n' ) + '\n'
-
+	return Trees()
 }
+
+const
+CorrParen	= _ => (
+	{	'(':	')'
+	,	'{':	'}'
+	,	'[':	']'
+	}[ _ ]
+)
+
+const
+Lines = trees => {
+
+	let
+	$ = []
+
+	const
+	Append = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
+
+	for ( const tree of trees ) {
+		if ( tree.constructor === Array ) {
+			const
+			[ pre, open, subTrees ] = tree
+
+			if(	pre === '' ) {
+				Append( open === '{' ? ' ' + open : open )
+			} else if ( pre[ 0 ] === '.' ) {
+				Append( pre + ' ' + open )
+			} else if( pre[ 0 ].match( SymbolC ) ) {
+				Append( ' ' + pre + ' ' + open )
+			} else {
+				$.push( pre + ' ' + open )
+			}
+
+			const
+			lines = Lines( subTrees )
+
+			switch ( lines.length ) {
+			case 0:
+				$[ $.length - 1 ] += CorrParen( open )
+				break
+			case 1:
+				$[ $.length - 1 ] += ' ' + lines[ 0 ] + ' ' + CorrParen( open )
+				break
+			default:
+				lines.forEach(
+					line => $.push(
+						line.length > 1 && line[ 0 ] === ',' && line[ 1 ] !== '\t'
+						?	',\t' + line.slice( 1 )
+						:	'\t' + line
+					)
+				)
+				$.push( CorrParen( open ) )
+				break
+			}
+		} else {
+			$.length && tree === 'const' && $.push( '' )
+			tree[ 0 ].match( SymbolC ) && $.length
+			?	(	$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
+				,	$[ $.length - 1 ] += tree
+				)
+			:	$.push( tree )
+		}
+	}
+	return $
+}
+
+const
+Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).join( '\n' ) + '\n'
 
 import fs from 'fs'
 
 fs.writeFileSync(
 	'/dev/stdout'
-,	Format(
-		Tokenize(
-			fs.readFileSync( '/dev/stdin', 'utf8' )
-		)
-	)
+,	Make( fs.readFileSync( '/dev/stdin', 'utf8' ) )
 )
 

@@ -312,30 +312,50 @@ Lines = trees => {
 	const
 	Append = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
 
+	let
+	ifw = false
+
+	const
+	IFW = _ => _ === 'if' || _ === 'while' || _ === 'for'
+
+	const
+	Identifier = _ => ifw && $.at( -1 ).at( -1 ).match( CloseParen )
+	?	Append( ' ' + _ )
+	:	$.push( _ )
+
 	for ( const tree of trees ) {
 		if ( tree.constructor === Array ) {
 			const
 			[ pre, open, subTrees ] = tree
 
+			const
+			openLS = ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
+
 			if(	pre === '' ) {
-				Append( open === '{' ? ' ' + open : open )
-			} else if ( pre[ 0 ] === '.' ) {
-				Append( pre + ' ' + open )
-			} else if( pre[ 0 ].match( SymbolC ) ) {
-				Append( ' ' + pre + ' ' + open )
+				Append( openLS )
 			} else {
-				$.push( pre + ' ' + open )
+				const
+				tree = pre + openLS
+				if ( pre[ 0 ] === '.' ) {
+					Append( tree )
+				} else if( pre[ 0 ].match( SymbolC ) ) {
+					Append( ' ' + tree )
+				} else {
+					Identifier( tree )
+				}
 			}
+
+			ifw = IFW( pre )
 
 			const
 			lines = Lines( subTrees )
 
 			switch ( lines.length ) {
 			case 0:
-				$[ $.length - 1 ] += CorrParen( open )
+				Append( CorrParen( open ) )
 				break
 			case 1:
-				$[ $.length - 1 ] += ' ' + lines[ 0 ] + ' ' + CorrParen( open )
+				Append( ' ' + lines[ 0 ] + ' ' + CorrParen( open ) )
 				break
 			default:
 				lines.forEach(
@@ -354,7 +374,9 @@ Lines = trees => {
 			?	(	$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
 				,	$[ $.length - 1 ] += tree
 				)
-			:	$.push( tree )
+			:	Identifier( tree )
+
+			ifw = false
 		}
 	}
 	return $

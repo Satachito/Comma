@@ -310,7 +310,10 @@ Lines = trees => {
 	$ = []
 
 	const
-	Append = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
+	Append = _ => $.length ? ( $[ $.length - 1 ] += ' ' + _ ) : $.push( _ )
+
+	const
+	AppendDirect = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
 
 	let
 	ifw = false
@@ -320,7 +323,7 @@ Lines = trees => {
 
 	const
 	Identifier = _ => ifw && $.at( -1 ).at( -1 ).match( CloseParen )
-	?	Append( ' ' + _ )
+	?	Append( _ )
 	:	$.push( _ )
 
 	for ( const tree of trees ) {
@@ -328,18 +331,15 @@ Lines = trees => {
 			const
 			[ pre, open, subTrees ] = tree
 
-			const
-			openLS = ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
-
 			if(	pre === '' ) {
-				Append( openLS )
+				open === '{' ? Append( open ) : AppendDirect( open )
 			} else {
 				const
-				tree = pre + openLS
+				tree = pre + ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
 				if ( pre[ 0 ] === '.' ) {
-					Append( tree )
+					AppendDirect( tree )
 				} else if( pre[ 0 ].match( SymbolC ) ) {
-					Append( ' ' + tree )
+					Append( tree )
 				} else {
 					Identifier( tree )
 				}
@@ -355,15 +355,22 @@ Lines = trees => {
 				Append( CorrParen( open ) )
 				break
 			case 1:
-				Append( ' ' + lines[ 0 ] + ' ' + CorrParen( open ) )
+				Append( lines[ 0 ] + ' ' + CorrParen( open ) )
 				break
 			default:
 				lines.forEach(
-					line => $.push(
-						line.length > 1 && line[ 0 ] === ',' && line[ 1 ] !== '\t'
+					line => {
+						const
+						indented = line.length > 1 && line[ 0 ] === ',' && line[ 1 ] !== '\t'
 						?	',\t' + line.slice( 1 )
 						:	'\t' + line
-					)
+
+						const
+						last = $.at( -1 )
+						last.length === 1 && last[ 0 ].match( OpenParen )
+						?	Append( indented )
+						:	$.push( indented )
+					}
 				)
 				$.push( CorrParen( open ) )
 				break

@@ -70,28 +70,25 @@ Tokenize	= S => {	//	Source
 			}
 		}
 
-		C.match( /\s/ )
-		?	(	word && ( $.push( word ), word = '' )
-			,	C === '\n' && !( $.at( -1 ) === C ) && $.push( C )
-			)
-		:	C.match( OperatorC )
-			?	(	word && ( $.push( word ), word = '' )
-				,	C === '/'
-					?	ReadC()
-					:	$.push( C + ReadOperatorRemain() )
-				)
-			:	C.match( OpenString )
-				?	(	word && ( $.push( word ), word = '' )
-					,	$.push( C + ReadRemain( C ) )
-					)
-				:	C === ',' || C === ';' || C.match( OpenParen ) || C.match( CloseParen )
-					?	(	word && ( $.push( word ), word = '' )
-						,	$.push( C )
-						)
-					:	(	word += C
-						,	console.assert( C !== '@', "Inhibited char: @" )
-						,	console.assert( C !== '#', "Inhibited char: #" )
-						)
+		C.match( /\s/ ) ?(
+			word && ( $.push( word ), word = '' )
+		,	C === '\n' && !( $.at( -1 ) === C ) && $.push( C )
+		) :	C.match( OperatorC ) ?(
+			word && ( $.push( word ), word = '' )
+		,	C === '/'
+			?	ReadC()
+			:	$.push( C + ReadOperatorRemain() )
+		) :	C.match( OpenString ) ?(
+			word && ( $.push( word ), word = '' )
+		,	$.push( C + ReadRemain( C ) )
+		) :	C === ',' || C === ';' || C.match( OpenParen ) || C.match( CloseParen ) ?(
+			word && ( $.push( word ), word = '' )
+		,	$.push( C )
+		) :	(
+			word += C
+		,	console.assert( C !== '@', "Inhibited char: @" )
+		,	console.assert( C !== '#', "Inhibited char: #" )
+		)
 	}
 	word && $.push( word )
 

@@ -1,5 +1,5 @@
 const
-SymbolC		= /[+\-*/%=<>!~&|^?:.]/
+OperatorC	= /[+\-*/%=<>!~&|^?:.]/
 
 const
 OpenParen	= /[\[\(\{]/
@@ -23,27 +23,19 @@ Tokenize	= S => {	//	Source
 			const
 			C = S[ _++ ]
 			$ += C
-			if( C.match( closer ) ) break
-			if( C === '\\' ) {
-				_ < S.length && ( $ += S[ _++ ] )
-				continue
-			}
-			if( extra ) {
-				$ += extra( C )
-				continue
-			}
+			if ( C.match( closer ) ) break
+			C === '\\'
+			?	_ < S.length && ( $ += S[ _++ ] )
+			:	extra && ( $ += extra( C ) )
 		}
 		return $
 	}
 
 	const
-	ReadSymbolRemain = () => {
+	ReadOperatorRemain = () => {
 		let
 		$ = ''
-		while( _ < S.length ) {
-			if( S[ _ ].match( SymbolC ) ) $ += S[ _++ ]
-			else break
-		}
+		while ( _ < S.length && S[ _ ].match( OperatorC ) ) $ += S[ _++ ]
 		return $
 	}
 
@@ -54,65 +46,104 @@ Tokenize	= S => {	//	Source
 		const
 		C = S[ _++ ]
 
-		if( C === '/' ) {
+		const
+		ReadC = () => {
+			if( S[ _ ] === '*' ) {
+				_ += 2
+				while( _ < S.length - 1 ) if( S[ _++ ] === '*' && S[ _++ ] === '/' ) break
+			} else if( S[ _ ] === '/' ) {
+				_ += 2
+				while( _ < S.length ) if( S[ _++ ] === '\n' ) break
+			} else {
+				const _Saved = _
+				const RE = ReadRemain(
+					/[\/\n]/
+				,	_ => _ === '['
+					?	ReadRemain( ']' )
+					:	''
+				)
+				if( RE.at( -1 ) === '/' ) $.push( C + RE )
+				else {
+					_ = _Saved
+					$.push( C + ReadOperatorRemain() )
+				}
+			}
+		}
+
+		C.match( /\s/ )
+		?	(	word && ( $.push( word ), word = '' )
+			,	C === '\n' && !( $.at( -1 ) === C ) && $.push( C )
+			)
+		:	C.match( OperatorC )
+			?	(	word && ( $.push( word ), word = '' )
+				,	C === '/'
+					?	ReadC()
+					:	$.push( C + ReadOperatorRemain() )
+				)
+			:	C.match( OpenString )
+				?	(	word && ( $.push( word ), word = '' )
+					,	$.push( C + ReadRemain( C ) )
+					)
+				:	C === ',' || C === ';' || C.match( OpenParen ) || C.match( CloseParen )
+					?	(	word && ( $.push( word ), word = '' )
+						,	$.push( C )
+						)
+					:	(	word += C
+						,	console.assert( C !== '@', "Inhibited char: @" )
+						,	console.assert( C !== '#', "Inhibited char: #" )
+						)
+
+
+
+
+
+/*
+		if(	C === '\n' ) {
+			word && ( $.push( word ), word = '' )
+			$.at( -1 ) === C || $.push( C )
+		} else if(	C.match( /\s/ ) ) {
+			word && ( $.push( word ), word = '' )
+		} else if( C === '/' ) {
 			word && ( $.push( word ), word = '' )
 			if( _ < S.length && S[ _ ] === '*' ) {
 				_ += 2
 				while( _ < S.length - 1 ) if( S[ _++ ] === '*' && S[ _++ ] === '/' ) break
-				continue
-			}
-			if( _ < S.length && S[ _ ] === '/' ) {
+			} else if( _ < S.length && S[ _ ] === '/' ) {
 				_ += 2
 				while( _ < S.length ) if( S[ _++ ] === '\n' ) break
-				continue
+			} else {
+				const _Saved = _
+				const RE = ReadRemain(
+					/[\/\n]/
+				,	_ => _ === '['
+					?	ReadRemain( ']' )
+					:	''
+				)
+				if( RE.at( -1 ) === '/' ) $.push( C + RE )
+				else {
+					_ = _Saved
+					$.push( C + ReadOperatorRemain() )
+				}
 			}
-			const _Saved = _
-			const RE = ReadRemain(
-				/[\/\n]/
-			,	_ => _ === '['
-				?	ReadRemain( ']' )
-				:	''
-			)
-			if( RE.at( -1 ) === '/' ) $.push( C + RE )
-			else {
-				_ = _Saved
-				$.push( C + ReadSymbolRemain() )
-			}
-			continue
-		}
-
-		if( C.match( SymbolC ) ) { 
+		} else if( C.match( OperatorC ) ) { 
 			word && ( $.push( word ), word = '' )
-			$.push( C + ReadSymbolRemain() )
-			continue
-		}
-
-		if(	C.match( OpenString ) ) {
+			$.push( C + ReadOperatorRemain() )
+		} else if(	C.match( OpenString ) ) {
 			word && ( $.push( word ), word = '' )
 			$.push( C + ReadRemain( C ) )
-			continue
-		}
-
-		if(	C === '\n' ) {
-			word && ( $.push( word ), word = '' )
-			$.length && $.at( -1 ) === C || $.push( C )
-			continue
-		}
-		if(	C.match( /\s/ ) ) {
-			word && ( $.push( word ), word = '' )
-			continue
-		}
-
-		if(	C === ','
+		} else if(
+			C === ','
 		||	C === ';'
 		||	C.match( OpenParen )
 		||	C.match( CloseParen )
 		) {	word && ( $.push( word ), word = '' )
 			$.push( C )
-			continue
+		} else {
+console.assert( C !== '@', "Inhibited char: @" )
+console.assert( C !== '#', "Inhibited char: #" )
+			word += C
 		}
-
-		word += C
+*/
 	}
 	word && $.push( word )
 
@@ -178,7 +209,7 @@ IsReserved	= _ => [
 ].includes( _ )
 
 const
-IsSymbol	= _ => [
+IsOperator	= _ => [
 	`!`
 ,	`~`
 ,	`...`
@@ -237,8 +268,13 @@ MakeTrees	= Ts => {
 
 	const
 	Trees = ( closer = null ) => {
-		const	$ = []
-		let		pre = ''
+		const
+		$ = []
+		let	
+		pre = ''
+		const
+		delimit = () => pre !== ',' && pre && pre.at( -1 ) != '.' && ( pre += ' ' )
+
 		while ( _ < Ts.length ) {
 
 			const T = Ts[ _++ ]
@@ -247,47 +283,29 @@ MakeTrees	= Ts => {
 			if( T[ 0 ].match( OpenParen ) ) {
 				$.push( [ pre, T, Trees( CorrParen( T ) ) ] )
 				pre = ''
-				continue
-			}
-			if( T === ';' ) {
+			} else if( T === ';' ) {
 				( $.push( pre + T ), pre = '' )
-				continue
-			}
-			if( T === '\n' ) {
+			} else if( T === '\n' ) {
 				pre && ( $.push( pre ), pre = '' )
-				continue
-			}
-			if( T === ',' ) {
+			} else if( T === ',' ) {
 				pre && $.push( pre )
 				pre = ','
-				continue
-			}
-
-			if( T === '.' ) {
+			} else if( T === '.' ) {
 				pre += T
-				continue
-			}
-
-			const
-			delimit = () => pre !== ',' && pre && pre.at( -1 ) != '.' && ( pre += ' ' )
-
-			//	i.e. Exclude identifier
-			if(	IsReserved( T )
+			} else if(
+				IsReserved( T )
 			||	IsString( T )
 			||	IsRegEX( T )
-			||	IsSymbol( T )
+			||	IsOperator( T )
 			) {	delimit()
 				pre += T
-				continue
-			}
-////////
-			if ( _ && IsReserved( Ts[ _ - 1 ] ) ) {
+			} else if ( _ && IsReserved( Ts[ _ - 1 ] ) ) {
 				$.push( pre )
 				pre = T
-				continue
+			} else {
+				delimit()
+				pre += T
 			}
-			delimit()
-			pre += T
 		}
 		pre && $.push( pre )
 		return $
@@ -316,6 +334,9 @@ Lines = trees => {
 	AppendDirect = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
 
 	let
+	CLV = _ => _ === 'const' || _ === 'let' || _ === 'var'
+
+	let
 	ifw = false
 
 	const
@@ -338,8 +359,11 @@ Lines = trees => {
 				tree = pre + ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
 				if ( pre[ 0 ] === '.' ) {
 					AppendDirect( tree )
-				} else if( pre[ 0 ].match( SymbolC ) ) {
+				} else if( pre[ 0 ].match( OperatorC ) ) {
 					Append( tree )
+				} else if ( CLV( pre ) ) {
+					$.push( pre )
+					$.push( open )
 				} else {
 					Identifier( tree )
 				}
@@ -376,8 +400,8 @@ Lines = trees => {
 				break
 			}
 		} else {
-			$.length && tree === 'const' && $.push( '' )
-			tree[ 0 ].match( SymbolC ) && $.length
+			$.length && CLV( tree ) && $.push( '' )
+			tree[ 0 ].match( OperatorC ) && $.length
 			?	(	$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
 				,	$[ $.length - 1 ] += tree
 				)

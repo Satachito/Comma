@@ -92,58 +92,6 @@ Tokenize	= S => {	//	Source
 						,	console.assert( C !== '@', "Inhibited char: @" )
 						,	console.assert( C !== '#', "Inhibited char: #" )
 						)
-
-
-
-
-
-/*
-		if(	C === '\n' ) {
-			word && ( $.push( word ), word = '' )
-			$.at( -1 ) === C || $.push( C )
-		} else if(	C.match( /\s/ ) ) {
-			word && ( $.push( word ), word = '' )
-		} else if( C === '/' ) {
-			word && ( $.push( word ), word = '' )
-			if( _ < S.length && S[ _ ] === '*' ) {
-				_ += 2
-				while( _ < S.length - 1 ) if( S[ _++ ] === '*' && S[ _++ ] === '/' ) break
-			} else if( _ < S.length && S[ _ ] === '/' ) {
-				_ += 2
-				while( _ < S.length ) if( S[ _++ ] === '\n' ) break
-			} else {
-				const _Saved = _
-				const RE = ReadRemain(
-					/[\/\n]/
-				,	_ => _ === '['
-					?	ReadRemain( ']' )
-					:	''
-				)
-				if( RE.at( -1 ) === '/' ) $.push( C + RE )
-				else {
-					_ = _Saved
-					$.push( C + ReadOperatorRemain() )
-				}
-			}
-		} else if( C.match( OperatorC ) ) { 
-			word && ( $.push( word ), word = '' )
-			$.push( C + ReadOperatorRemain() )
-		} else if(	C.match( OpenString ) ) {
-			word && ( $.push( word ), word = '' )
-			$.push( C + ReadRemain( C ) )
-		} else if(
-			C === ','
-		||	C === ';'
-		||	C.match( OpenParen )
-		||	C.match( CloseParen )
-		) {	word && ( $.push( word ), word = '' )
-			$.push( C )
-		} else {
-console.assert( C !== '@', "Inhibited char: @" )
-console.assert( C !== '#', "Inhibited char: #" )
-			word += C
-		}
-*/
 	}
 	word && $.push( word )
 
@@ -280,32 +228,29 @@ MakeTrees	= Ts => {
 			const T = Ts[ _++ ]
 			if( T === closer ) break
 
-			if( T[ 0 ].match( OpenParen ) ) {
+			T[ 0 ].match( OpenParen ) ?(
 				$.push( [ pre, T, Trees( CorrParen( T ) ) ] )
-				pre = ''
-			} else if( T === ';' ) {
-				( $.push( pre + T ), pre = '' )
-			} else if( T === '\n' ) {
+			,	pre = ''
+			) :	T === ';' ?(
+				$.push( pre + T )
+			,	pre = ''
+			) :	T === '\n' ?(
 				pre && ( $.push( pre ), pre = '' )
-			} else if( T === ',' ) {
+			) :	T === ',' ?(
 				pre && $.push( pre )
-				pre = ','
-			} else if( T === '.' ) {
+			,	pre = ','
+			) :	T === '.' ?(
 				pre += T
-			} else if(
-				IsReserved( T )
-			||	IsString( T )
-			||	IsRegEX( T )
-			||	IsOperator( T )
-			) {	delimit()
-				pre += T
-			} else if ( _ && IsReserved( Ts[ _ - 1 ] ) ) {
-				$.push( pre )
-				pre = T
-			} else {
+			) : IsReserved( T ) || IsString( T ) || IsRegEX( T ) || IsOperator( T ) ?(
 				delimit()
-				pre += T
-			}
+			,	pre += T
+			) :	_ && IsReserved( Ts[ _ - 1 ] ) ?(
+				$.push( pre )
+			,	pre = T
+			) :	(
+				delimit()
+			,	pre += T
+			)
 		}
 		pre && $.push( pre )
 		return $
@@ -374,14 +319,8 @@ Lines = trees => {
 			const
 			lines = Lines( subTrees )
 
-			switch ( lines.length ) {
-			case 0:
-				Append( CorrParen( open ) )
-				break
-			case 1:
-				Append( lines[ 0 ] + ' ' + CorrParen( open ) )
-				break
-			default:
+			lines.length == 0	?	Append( CorrParen( open ) )	:
+			lines.length == 1	?	Append( lines[ 0 ] + ' ' + CorrParen( open ) )	:(
 				lines.forEach(
 					line => {
 						const
@@ -396,17 +335,15 @@ Lines = trees => {
 						:	$.push( indented )
 					}
 				)
-				$.push( CorrParen( open ) )
-				break
-			}
+			,	$.push( CorrParen( open ) )
+			)
+
 		} else {
 			$.length && CLV( tree ) && $.push( '' )
-			tree[ 0 ].match( OperatorC ) && $.length
-			?	(	$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
-				,	$[ $.length - 1 ] += tree
-				)
-			:	Identifier( tree )
-
+			tree[ 0 ].match( OperatorC ) && $.length ?(
+				$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
+			,	$[ $.length - 1 ] += tree
+			) :	Identifier( tree )
 			ifw = false
 		}
 	}

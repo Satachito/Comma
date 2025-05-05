@@ -272,9 +272,6 @@ Lines = trees => {
 	const
 	Append = _ => $.length ? ( $[ $.length - 1 ] += ' ' + _ ) : $.push( _ )
 
-	const
-	AppendDirect = _ => $.length ? ( $[ $.length - 1 ] += _ ) : $.push( _ )
-
 	let
 	CLV = _ => _ === 'const' || _ === 'let' || _ === 'var'
 
@@ -295,17 +292,14 @@ Lines = trees => {
 			[ pre, open, subTrees ] = tree
 
 			if(	pre === '' ) {
-				open === '{' ? Append( open ) : AppendDirect( open )
+				$.push( open )
 			} else {
 				const
 				tree = pre + ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
 				if ( pre[ 0 ] === '.' ) {
-					AppendDirect( tree )
+					$.length ? ( $[ $.length - 1 ] += tree ) : $.push( tree )
 				} else if( pre[ 0 ].match( OperatorC ) ) {
 					Append( tree )
-				} else if ( CLV( pre ) ) {
-					$.push( pre )
-					$.push( open )
 				} else {
 					Identifier( tree )
 				}

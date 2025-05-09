@@ -7,7 +7,7 @@ import {
 } from './Tokenize.js'
 
 const
-Symbolic	= _ => [
+Appendable	= _ => [
 	`!`
 ,	`~`
 ,	`...`
@@ -53,6 +53,8 @@ Symbolic	= _ => [
 
 ,	`.`
 ,	`=>`
+,	'continue'
+,	'break'
 ].includes( _ )
 
 const
@@ -60,11 +62,6 @@ IsRegEX		= _ => _.at( 0 ) === '/' && _.at( -1 ) === '/'
 
 const
 IsString	= _ => OpenString.includes( _.at( 0 ) )
-
-const
-AfterNL		= _ => [
-	'const', 'let', 'var', 'break'
-].includes( _ )
 
 const
 CorrParen	= _ => (
@@ -130,71 +127,73 @@ Lines = ( trees, level = 0 ) => {
 	?	_[ 0 ] === '.'
 		?	'.' + Make( _.slice( 1 ) )
 		:	_.length > 1
-			?	_[ 0 ] + ' ' + Make( _.slice( 1 ) )
+			?	_[ 0 ] + ( _[ 1 ] === '.' ? '' : ' ' ) + Make( _.slice( 1 ) )
 			:	_[ 0 ]
 	:	''
 
 	const
-	Pre = _ => _[ 0 ] === ','
+	Pre = _ => _.length && _[ 0 ] === ','
 	?	$.push( [ ',\t' + Make( _.slice( 1 ) ), level - 1 ] )
-	:	Symbolic( _[ 0 ] )
+	:	Appendable( _[ 0 ] )
 		?	Append( Make( _ ) )
 		:	(	Push( _[ 0 ] )
-			,	_.length > 1 && Append( Make( _.slice( 1 ) ) )
+			,	_.length > 1 && Pre( _.slice( 1 ) )
 			)
 
-	for ( const tree of trees ) {
-		if ( Array.isArray( tree ) ) {
-			tree.length
-			?	Pre( tree )
-			:	Push( '' )
-		} else {
-			const
-			{ body, open, subTrees } = tree
-			const
-			close = CorrParen( open )
+	const
+	Paren = _ => {
+		const
+		{ body, open, subTrees } = _
+		const
+		close = CorrParen( open )
 
-			body.length && Pre( body )
-			Append( open )
+		body.length && Pre( body )
+		Append( open )
 
-			const
-			lines = Lines( subTrees, level + 1 ).filter( _ => _[ 0 ].length )
+		const
+		lines = Lines( subTrees, level + 1 ).filter( _ => _[ 0 ].length )
 
-			lines.length == 0
-			?	Append( close, '' )
-			:	lines.length == 1
-				?	Append( lines[ 0 ][ 0 ] + ' ' + close )
-				:	(	$.at( -1 )[ 0 ].length < 4
-						?	Append( lines[ 0 ][ 0 ], '\t' )
-						:	$.push( lines[ 0 ] )
-					,	$.push( ...lines.slice( 1 ) )
-					,	Push( close )
-					)
-		}
+		lines.length == 0
+		?	Append( close, '' )
+		:	lines.length == 1
+			?	Append( lines[ 0 ][ 0 ] + ' ' + close )
+			:	(	$.at( -1 )[ 0 ].length < 4
+					?	Append( lines[ 0 ][ 0 ], '\t' )
+					:	$.push( lines[ 0 ] )
+				,	$.push( ...lines.slice( 1 ) )
+				,	Push( close )
+				)
 	}
+
+	for ( const tree of trees ) Array.isArray( tree )
+	?	tree.length
+		?	Pre( tree )
+		:	Push( '' )
+	:	Paren( tree )
+
 	return $
 }
 
-/*
 const
 Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).reduce(
 	( $, _ ) => $ + '\t'.repeat( _[ 1 ] ) + _[ 0 ] + '\n'
 ,	''
 )
-*/
+/*
+const
+S = _ => JSON.stringify( _, null, '\t' )
 const
 Make = _ => {
 	const
 	trees = MakeTrees( Tokenize( _ ) )
-	console.error( JSON.stringify( trees, null, '\t' ) )
+	console.error( S( trees ) )
 	return Lines( trees ).reduce(
 		( $, _ ) => $ + '\t'.repeat( _[ 1 ] ) + _[ 0 ] + '\n'
 	,	''
 	)
 }
+*/
 
-//const
-//S = _ => JSON.stringify( _, null, '\t' )
 
 import fs from 'fs'
 

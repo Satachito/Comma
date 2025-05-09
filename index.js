@@ -1,99 +1,10 @@
-const
-OperatorC	= /[+\-*/%=<>!~&|^?:.]/
-
-const
-OpenParen	= /[\[\(\{]/
-
-const
-CloseParen	= /[\]\)\}]/
-
-const
-OpenString	= /[`"']/
-
-const
-Tokenize	= S => {	//	Source
-
-	const	$	= []
-	let		_	= 0
-
-	const
-	ReadRemain	= ( closer, extra ) => {	//	`closer` accepts RegEX
-		let $ = ''
-		while( _ < S.length ) {
-			const
-			C = S[ _++ ]
-			$ += C
-			if ( C.match( closer ) ) break
-			C === '\\'
-			?	_ < S.length && ( $ += S[ _++ ] )
-			:	extra && ( $ += extra( C ) )
-		}
-		return $
-	}
-
-	const
-	ReadOperatorRemain = () => {
-		let
-		$ = ''
-		while ( _ < S.length && S[ _ ].match( OperatorC ) ) $ += S[ _++ ]
-		return $
-	}
-
-	let
-	word = ''
-	while( _ < S.length ) {
-
-		const
-		C = S[ _++ ]
-
-		const
-		ReadC = () => {
-			if( S[ _ ] === '*' ) {
-				_ += 2
-				while( _ < S.length - 1 ) if( S[ _++ ] === '*' && S[ _++ ] === '/' ) break
-			} else if( S[ _ ] === '/' ) {
-				_ += 2
-				while( _ < S.length ) if( S[ _++ ] === '\n' ) break
-			} else {
-				const _Saved = _
-				const RE = ReadRemain(
-					/[\/\n]/
-				,	_ => _ === '['
-					?	ReadRemain( ']' )
-					:	''
-				)
-				if( RE.at( -1 ) === '/' ) $.push( C + RE )
-				else {
-					_ = _Saved
-					$.push( C + ReadOperatorRemain() )
-				}
-			}
-		}
-
-		C.match( /\s/ ) ?(
-			word && ( $.push( word ), word = '' )
-		,	C === '\n' && !( $.at( -1 ) === C ) && $.push( C )
-		) :	C.match( OperatorC ) ?(
-			word && ( $.push( word ), word = '' )
-		,	C === '/'
-			?	ReadC()
-			:	$.push( C + ReadOperatorRemain() )
-		) :	C.match( OpenString ) ?(
-			word && ( $.push( word ), word = '' )
-		,	$.push( C + ReadRemain( C ) )
-		) :	C === ',' || C === ';' || C.match( OpenParen ) || C.match( CloseParen ) ?(
-			word && ( $.push( word ), word = '' )
-		,	$.push( C )
-		) :	(
-			word += C
-		,	console.assert( C !== '@', "Inhibited char: @" )
-		,	console.assert( C !== '#', "Inhibited char: #" )
-		)
-	}
-	word && $.push( word )
-
-	return $
-}
+import {
+	OperatorC
+,	OpenParen
+,	CloseParen
+,	OpenString
+,	Tokenize
+} from './Tokenize.js'
 
 const
 IsReserved	= _ => [
@@ -205,55 +116,13 @@ const
 IsRegEX		= _ => _.at( 0 ) === '/' && _.at( -1 ) === '/'
 
 const
-IsString	= _ => _.at( 0 ).match( OpenString )
+IsString	= _ => OpenString.includes( _.at( 0 ) )
 
 const
-MakeTrees	= Ts => {
-	let _ = 0
+CLV			= _ => _ === 'const' || _ === 'let' || _ === 'var'
 
-	const
-	Trees = ( closer = null ) => {
-		const
-		$ = []
-		let	
-		pre = ''
-		const
-		delimit = () => pre !== ',' && pre && pre.at( -1 ) != '.' && ( pre += ' ' )
-
-		while ( _ < Ts.length ) {
-
-			const T = Ts[ _++ ]
-			if( T === closer ) break
-
-			T[ 0 ].match( OpenParen ) ?(
-				$.push( [ pre, T, Trees( CorrParen( T ) ) ] )
-			,	pre = ''
-			) :	T === ';' ?(
-				$.push( pre + T )
-			,	pre = ''
-			) :	T === '\n' ?(
-				pre && ( $.push( pre ), pre = '' )
-			) :	T === ',' ?(
-				pre && $.push( pre )
-			,	pre = ','
-			) :	T === '.' ?(
-				pre += T
-			) : IsReserved( T ) || IsString( T ) || IsRegEX( T ) || IsOperator( T ) ?(
-				delimit()
-			,	pre += T
-			) :	_ && IsReserved( Ts[ _ - 1 ] ) ?(
-				$.push( pre )
-			,	pre = T
-			) :	(
-				delimit()
-			,	pre += T
-			)
-		}
-		pre && $.push( pre )
-		return $
-	}
-	return Trees()
-}
+const
+IFW			= _ => _ === 'if' || _ === 'while' || _ === 'for'
 
 const
 CorrParen	= _ => (
@@ -264,85 +133,120 @@ CorrParen	= _ => (
 )
 
 const
+MakeTrees	= Ts => {
+	let _ = 0
+
+	const
+	Trees = ( closer = null ) => {
+		const
+		$ = []
+		let	
+		body = []
+
+		while ( _ < Ts.length ) {
+
+			const T = Ts[ _++ ]
+			if( T === closer ) break
+
+			OpenParen.includes( T ) ?(
+				$.push( { body, open: T, subTrees: Trees( CorrParen( T ) ) } )
+			,	body = []
+			) :	T === ',' ?(
+				body.length && $.push( body )
+			,	body = [ T ]
+			) :	T === ';' ?(
+				$.push( [ ...body, T ] )
+			,	body = []
+			) :	T === '\n' ?(
+				$.push( body )
+			,	body = []
+			) :	body.push( T )
+		}
+		body.length && $.push( body )
+		return $
+	}
+	return Trees()
+}
+
+const
 Lines = trees => {
 
 	let
 	$ = []
 
 	const
-	Append = _ => $.length ? ( $[ $.length - 1 ] += ' ' + _ ) : $.push( _ )
-
-	let
-	CLV = _ => _ === 'const' || _ === 'let' || _ === 'var'
-
-	let
-	ifw = false
+	Head = _ => _ === '' || _ === ',' || _ === ',\t' || _.endsWith( '.' )
 
 	const
-	IFW = _ => _ === 'if' || _ === 'while' || _ === 'for'
-
-	const
-	Identifier = _ => ifw && $.at( -1 ).at( -1 ).match( CloseParen )
-	?	Append( _ )
+	Append = ( _, separator = ' ' ) => $.length
+	?	$[ $.length - 1 ] += Head( $.at( -1 ) ) ? _ : ( separator + _ )
 	:	$.push( _ )
 
-	for ( const tree of trees ) {
-		if ( tree.constructor === Array ) {
-			const
-			[ pre, open, subTrees ] = tree
+	const
+	Make = _ => _.length
+	?	_[ 0 ] === ','
+		?	',\t' + Make( _.slice( 1 ) )
+		:	_[ 0 ] === '.'
+			?	'.' + Make( _.slice( 1 ) )
+			:	_[ 0 ] + ' ' + Make( _.slice( 1 ) )
+	:	''
 
-			if(	pre === '' ) {
-				$.push( open )
-			} else {
-				const
-				tree = pre + ( ( IFW( pre ) || open === '{' ) ? ' ' : '' ) + open
-				if ( pre[ 0 ] === '.' ) {
-					$.length ? ( $[ $.length - 1 ] += tree ) : $.push( tree )
-				} else if( pre[ 0 ].match( OperatorC ) ) {
-					Append( tree )
+	for ( const tree of trees ) {
+		if ( Array.isArray( tree ) ) {
+			if ( tree.length ) {
+				if ( CLV( tree[ 0 ] ) ) {
+					$.push( tree[ 0 ] )
+					$.push( Make( tree.slice( 1 ) ) )
 				} else {
-					Identifier( tree )
+					$.length && CloseParen.includes( $.at( -1 ).at( -1 ) )
+					?	Append( Make( tree ) )
+					:	$.push( Make( tree ) )
 				}
 			}
+		} else {
+			const
+			{ body, open, subTrees } = tree
+			const
+			close = CorrParen( open )
 
-			ifw = IFW( pre )
+			Append( Make( body ) + open )
 
 			const
 			lines = Lines( subTrees )
 
-			lines.length == 0	?	Append( CorrParen( open ) )	:
-			lines.length == 1	?	Append( lines[ 0 ] + ' ' + CorrParen( open ) )	:(
-				lines.forEach(
-					line => {
-						const
-						indented = line.length > 1 && line[ 0 ] === ',' && line[ 1 ] !== '\t'
-						?	',\t' + line.slice( 1 )
-						:	'\t' + line
+			lines.length == 0
+			?	Append( close, '' )
+			:	lines.length == 1
+				?	Append( lines[ 0 ] + ' ' + close )
+				:	(	lines.forEach(
+							line => {
+								const
+								indented = line.length > 1 && line[ 0 ] === ',' && line[ 1 ] === '\t'
+								?	line
+								:	'\t' + line
 
-						const
-						last = $.at( -1 )
-						last.length === 1 && last[ 0 ].match( OpenParen )
-						?	Append( indented )
-						:	$.push( indented )
-					}
-				)
-			,	$.push( CorrParen( open ) )
-			)
-
-		} else {
-			$.length && CLV( tree ) && $.push( '' )
-			tree[ 0 ].match( OperatorC ) && $.length ?(
-				$[ $.length - 1 ] || ( $[ $.length - 1 ] += '\t' )
-			,	$[ $.length - 1 ] += tree
-			) :	Identifier( tree )
-			ifw = false
+								const
+								last = $.at( -1 )
+								last.length === 1 && OpenParen.includes( last[ 0 ] )
+								?	Append( indented )
+								:	$.push( indented )
+							}
+						)
+					,	$.push( close )
+					)
 		}
 	}
 	return $
 }
 
 const
-Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).join( '\n' ) + '\n'
+Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).join( '\n' )
+/*
+const
+S = _ => JSON.stringify( _, null, '\t' )
+const
+Make = _ => S( MakeTrees( Tokenize( _ ) ) )
+*/
 
 import fs from 'fs'
 

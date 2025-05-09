@@ -134,34 +134,31 @@ Lines = ( trees, level = 0 ) => {
 			:	_[ 0 ]
 	:	''
 
+	const
+	Pre = _ => _[ 0 ] === ','
+	?	$.push( [ ',\t' + Make( _.slice( 1 ) ), level - 1 ] )
+	:	Symbolic( _[ 0 ] )
+		?	Append( Make( _ ) )
+		:	(	Push( _[ 0 ] )
+			,	_.length > 1 && Append( Make( _.slice( 1 ) ) )
+			)
+
 	for ( const tree of trees ) {
 		if ( Array.isArray( tree ) ) {
-			if ( tree.length ) {
-				if ( tree[ 0 ] === ',' ) {
-					$.push( [ ',\t' + Make( tree.slice( 1 ) ), level - 1 ] )
-				} else if ( AfterNL( tree[ 0 ] ) ) {
-					Push( tree[ 0 ] )
-					Push( Make( tree.slice( 1 ) ) )
-				} else {
-					Append( Make( tree ) )
-				}
-			} else {
-				Push( '' )
-			}
+			tree.length
+			?	Pre( tree )
+			:	Push( '' )
 		} else {
 			const
 			{ body, open, subTrees } = tree
 			const
 			close = CorrParen( open )
 
-			body.length && !Symbolic( body[ 0 ] )
-			?	(	Push( body[ 0 ] )
-				,	Append( Make( body.slice( 1 ) ) + open )
-				)
-			:	Append( Make( body ) + open )
+			body.length && Pre( body )
+			Append( open )
 
 			const
-			lines = Lines( subTrees, level + 1 )
+			lines = Lines( subTrees, level + 1 ).filter( _ => _[ 0 ].length )
 
 			lines.length == 0
 			?	Append( close, '' )
@@ -177,12 +174,14 @@ Lines = ( trees, level = 0 ) => {
 	}
 	return $
 }
+
+/*
 const
 Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).reduce(
 	( $, _ ) => $ + '\t'.repeat( _[ 1 ] ) + _[ 0 ] + '\n'
 ,	''
 )
-/*
+*/
 const
 Make = _ => {
 	const
@@ -193,7 +192,6 @@ Make = _ => {
 	,	''
 	)
 }
-*/
 
 //const
 //S = _ => JSON.stringify( _, null, '\t' )

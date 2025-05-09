@@ -7,65 +7,7 @@ import {
 } from './Tokenize.js'
 
 const
-IsReserved	= _ => [
-	`await`
-,	`break`
-,	`case`
-,	`catch`
-,	`class`
-,	`const`
-,	`continue`
-,	`debugger`
-,	`default`
-,	`delete`
-,	`do`
-,	`else`
-,	`enum`
-,	`export`
-,	`extends`
-,	`false`
-,	`finally`
-,	`for`
-,	`function`
-,	`if`
-,	`import`
-,	`in`
-,	`instanceof`
-,	`new`
-,	`null`
-,	`return`
-,	`super`
-,	`switch`
-,	`this`
-,	`throw`
-,	`true`
-,	`try`
-,	`typeof`
-,	`var`
-,	`void`
-,	`while`
-,	`with`
-,	`yield`
-,	`implements`
-,	`interface`
-,	`let`
-,	`package`
-,	`private`
-,	`protected`
-,	`public`
-,	`static`
-,	`true`
-,	`false`
-,	`null`
-,	`NaN`
-,	`Infinity`
-,	`undefined`
-,	`globalThis`
-,	`arguments`
-].includes( _ )
-
-const
-IsOperator	= _ => [
+Symbolic	= _ => [
 	`!`
 ,	`~`
 ,	`...`
@@ -110,6 +52,7 @@ IsOperator	= _ => [
 ,	`?.`
 
 ,	`.`
+,	`=>`
 ].includes( _ )
 
 const
@@ -119,10 +62,9 @@ const
 IsString	= _ => OpenString.includes( _.at( 0 ) )
 
 const
-CLV			= _ => _ === 'const' || _ === 'let' || _ === 'var'
-
-const
-IFW			= _ => _ === 'if' || _ === 'while' || _ === 'for'
+AfterNL		= _ => [
+	'const', 'let', 'var', 'break'
+].includes( _ )
 
 const
 CorrParen	= _ => (
@@ -151,6 +93,7 @@ MakeTrees	= Ts => {
 			OpenParen.includes( T ) ?(
 				$.push( { body, open: T, subTrees: Trees( CorrParen( T ) ) } )
 			,	body = []
+			,	Ts[ _ ] === '\n' && $.push( [] )
 			) :	T === ',' ?(
 				body.length && $.push( body )
 			,	body = [ T ]
@@ -158,7 +101,7 @@ MakeTrees	= Ts => {
 				$.push( [ ...body, T ] )
 			,	body = []
 			) :	T === '\n' ?(
-				$.push( body )
+				body.length && $.push( body )
 			,	body = []
 			) :	body.push( T )
 		}
@@ -169,39 +112,41 @@ MakeTrees	= Ts => {
 }
 
 const
-Lines = trees => {
+Lines = ( trees, level = 0 ) => {
 
 	let
 	$ = []
 
 	const
-	Head = _ => _ === '' || _ === ',' || _ === ',\t' || _.endsWith( '.' )
+	Push = _ => $.push( [ _, level ] )
 
 	const
 	Append = ( _, separator = ' ' ) => $.length
-	?	$[ $.length - 1 ] += Head( $.at( -1 ) ) ? _ : ( separator + _ )
-	:	$.push( _ )
+	?	$[ $.length - 1 ][ 0 ] += $.at( -1 )[ 0 ] ? ( separator + _ ) : _
+	:	Push( _ )
 
 	const
 	Make = _ => _.length
-	?	_[ 0 ] === ','
-		?	',\t' + Make( _.slice( 1 ) )
-		:	_[ 0 ] === '.'
-			?	'.' + Make( _.slice( 1 ) )
-			:	_[ 0 ] + ' ' + Make( _.slice( 1 ) )
+	?	_[ 0 ] === '.'
+		?	'.' + Make( _.slice( 1 ) )
+		:	_.length > 1
+			?	_[ 0 ] + ' ' + Make( _.slice( 1 ) )
+			:	_[ 0 ]
 	:	''
 
 	for ( const tree of trees ) {
 		if ( Array.isArray( tree ) ) {
 			if ( tree.length ) {
-				if ( CLV( tree[ 0 ] ) ) {
-					$.push( tree[ 0 ] )
-					$.push( Make( tree.slice( 1 ) ) )
+				if ( tree[ 0 ] === ',' ) {
+					$.push( [ ',\t' + Make( tree.slice( 1 ) ), level - 1 ] )
+				} else if ( AfterNL( tree[ 0 ] ) ) {
+					Push( tree[ 0 ] )
+					Push( Make( tree.slice( 1 ) ) )
 				} else {
-					$.length && CloseParen.includes( $.at( -1 ).at( -1 ) )
-					?	Append( Make( tree ) )
-					:	$.push( Make( tree ) )
+					Append( Make( tree ) )
 				}
+			} else {
+				Push( '' )
 			}
 		} else {
 			const
@@ -209,44 +154,49 @@ Lines = trees => {
 			const
 			close = CorrParen( open )
 
-			Append( Make( body ) + open )
+			body.length && !Symbolic( body[ 0 ] )
+			?	(	Push( body[ 0 ] )
+				,	Append( Make( body.slice( 1 ) ) + open )
+				)
+			:	Append( Make( body ) + open )
 
 			const
-			lines = Lines( subTrees )
+			lines = Lines( subTrees, level + 1 )
 
 			lines.length == 0
 			?	Append( close, '' )
 			:	lines.length == 1
-				?	Append( lines[ 0 ] + ' ' + close )
-				:	(	lines.forEach(
-							line => {
-								const
-								indented = line.length > 1 && line[ 0 ] === ',' && line[ 1 ] === '\t'
-								?	line
-								:	'\t' + line
-
-								const
-								last = $.at( -1 )
-								last.length === 1 && OpenParen.includes( last[ 0 ] )
-								?	Append( indented )
-								:	$.push( indented )
-							}
-						)
-					,	$.push( close )
+				?	Append( lines[ 0 ][ 0 ] + ' ' + close )
+				:	(	$.at( -1 )[ 0 ].length < 4
+						?	Append( lines[ 0 ][ 0 ], '\t' )
+						:	$.push( lines[ 0 ] )
+					,	$.push( ...lines.slice( 1 ) )
+					,	Push( close )
 					)
 		}
 	}
 	return $
 }
-
 const
-Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).join( '\n' )
+Make = _ => Lines( MakeTrees( Tokenize( _ ) ) ).reduce(
+	( $, _ ) => $ + '\t'.repeat( _[ 1 ] ) + _[ 0 ] + '\n'
+,	''
+)
 /*
 const
-S = _ => JSON.stringify( _, null, '\t' )
-const
-Make = _ => S( MakeTrees( Tokenize( _ ) ) )
+Make = _ => {
+	const
+	trees = MakeTrees( Tokenize( _ ) )
+	console.error( JSON.stringify( trees, null, '\t' ) )
+	return Lines( trees ).reduce(
+		( $, _ ) => $ + '\t'.repeat( _[ 1 ] ) + _[ 0 ] + '\n'
+	,	''
+	)
+}
 */
+
+//const
+//S = _ => JSON.stringify( _, null, '\t' )
 
 import fs from 'fs'
 
